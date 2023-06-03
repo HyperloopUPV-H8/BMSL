@@ -1,0 +1,29 @@
+{
+    "folders": [
+		{
+			"path": "BMSL-TEST"
+		},
+		{
+			"path": "BMSL"
+		},
+		{
+			"path": "../../../../../opt/BMS-LIB/BMS-LIB"
+		},
+		{
+			"path": "../../../../../opt/malva/ST-LIB"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"array": "cpp",
+			"init.h": "c",
+			"lwip.h": "c",
+			"bitset": "cpp",
+			"string_view": "cpp",
+			"initializer_list": "cpp",
+			"ranges": "cpp",
+			"span": "cpp",
+			"utility": "cpp"
+		}
+	}
+}
