@@ -189,14 +189,6 @@ struct battery_data {
             Leds::fault.turn_off();
         }, Gen::FAULT);
 
-        // sm.add_low_precision_cyclic_action([&]() {
-        //     bms.update_temperatures();
-        // }, ms(100), Gen::OPERATIONAL);
-        
-        // sm.add_mid_precision_cyclic_action([&]() {
-        //     bms.update_cell_voltages();
-        // }, us(5000), Gen::OPERATIONAL);
-
         sm.add_state_machine(op_sm, Gen::OPERATIONAL);
 
         op_sm.add_state(Op::CHARGING);
@@ -258,6 +250,20 @@ struct battery_data {
             bms.external_adc.battery.update_data();
         }, ms(10), Op::IDLE);
 
+        HAL_Delay(3);
+
+        op_sm.add_low_precision_cyclic_action([&]() {
+            bms.wake_up();
+            bms.start_adc_conversion_temperatures();
+        }, ms(10), Op::IDLE);
+
+        HAL_Delay(3);
+
+        op_sm.add_low_precision_cyclic_action([&]() {
+            bms.wake_up();
+            bms.read_temperatures();
+        }, ms(10), Op::IDLE);
+        
         op_sm.add_state_machine(ch_sm, Op::CHARGING);
 
 

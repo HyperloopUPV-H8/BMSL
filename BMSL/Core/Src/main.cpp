@@ -6,6 +6,8 @@
 
 int main(void) {
 
+	add_protection(&BMSL::Measurements::charging_current, Boundary<double, ABOVE>(47));
+
 	HeapOrder start_balancing_order = {
 		800,
 		BMSL::Orders::start_balancing,
