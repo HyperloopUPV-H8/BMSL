@@ -26,6 +26,16 @@ int main(void) {
 		&BMSL::Orders::selected_number
 	};
 
+	HeapOrder start_all_pwm_order = {
+		890,
+		BMSL::Orders::start_all_pwm,
+	};
+
+	HeapOrder stop_all_pwm_order = {
+		891,
+		BMSL::Orders::stop_all_pwm,
+	};
+
 	HeapPacket battery_packet = {
 		810,
 		&BMSL::Packets::battery_info.data
@@ -43,8 +53,10 @@ int main(void) {
 		300,
 		&BMSL::Measurements::avionics_current,
 		&BMSL::Measurements::input_charging_current,
-		&BMSL::Measurements::output_charging_current	
-		);
+		&BMSL::Measurements::output_charging_current,
+		&BMSL::Measurements::input_charging_voltage,
+		&BMSL::Measurements::output_charging_voltage	
+	);
 	
 	BMSL::inscribe();
 	BMSL::start();

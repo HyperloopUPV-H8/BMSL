@@ -71,6 +71,8 @@ namespace BMSL {
         double avionics_current;
         double input_charging_current;
         double output_charging_current;
+        double input_charging_voltage;
+        double output_charging_voltage;
         double inverter_temperature;
         double capacitor_temperature;
         double transformer_temperature;
@@ -80,6 +82,8 @@ namespace BMSL {
         LinearSensor<double> avionics_current;
         LinearSensor<double> input_charging_current;
         LinearSensor<double> output_charging_current;
+        LinearSensor<double> input_charging_voltage;
+        LinearSensor<double> output_charging_voltage;
     }
     namespace States {
         enum General : uint8_t {
@@ -106,6 +110,17 @@ namespace BMSL {
         bool fault = false;
         bool charging = false;
     }
+
+    namespace Leds {
+        DigitalOutput low_charge;
+        DigitalOutput full_charge;
+        DigitalOutput sleep;
+        DigitalOutput flash;
+        DigitalOutput can;
+        DigitalOutput fault;
+        DigitalOutput operational;
+    }
+
     namespace Packets {
         struct battery_data {
             float* data[13];
@@ -153,10 +168,12 @@ namespace BMSL {
 
         void start_all_pwm() {
             ChargeControl::dclv.turn_on();
+            Leds::fault.turn_on();
         }
 
         void stop_all_pwm() {
             ChargeControl::dclv.turn_off();
+            Leds::fault.turn_off();
         }
 
 
@@ -190,15 +207,7 @@ namespace BMSL {
             }
         }
     };
-    namespace Leds {
-        DigitalOutput low_charge;
-        DigitalOutput full_charge;
-        DigitalOutput sleep;
-        DigitalOutput flash;
-        DigitalOutput can;
-        DigitalOutput fault;
-        DigitalOutput operational;
-    }
+
     namespace StateMachines {
         StateMachine general;
         StateMachine operational;
@@ -234,6 +243,10 @@ namespace BMSL {
 
         sm.add_mid_precision_cyclic_action([&]() {
             Sensors::avionics_current.read();
+            Sensors::input_charging_current.read();
+            Sensors::output_charging_current.read();
+            Sensors::input_charging_voltage.read();
+            Sensors::output_charging_voltage.read();
         }, ms(200), Gen::OPERATIONAL);
 
         sm.add_enter_action([&]() {
@@ -344,7 +357,7 @@ namespace BMSL {
             ChargeControl::pwm_frequency = 100000;
             ChargeControl::dclv.set_phase(100);
             ChargeControl::dclv.set_duty_cycle(50);
-            ChargeControl::dclv.set_frequency(ChargeControl::pwm_frequency);
+            ChargeControl::dclv.set_frequency(150000);
             ChargeControl::charger_pi.reset();
             ChargeControl::dclv.turn_on();
 
@@ -367,11 +380,11 @@ namespace BMSL {
             }
         }, ms(100), Ch::CONSTANT_VOLTAGE);
 
-        ch_sm.add_mid_precision_cyclic_action([&]() {
+        ch_sm.add_low_precision_cyclic_action([&]() {
             if (ChargeControl::dclv.get_phase() > 15) {
                 ChargeControl::dclv.set_phase(ChargeControl::dclv.get_phase() - 1);
             }
-        }, us(50), Ch::PRECHARGE);
+        }, ms(100), Ch::PRECHARGE);
 
         ch_sm.add_exit_action( [&]() {
             ChargeControl::dclv.set_phase(15);
@@ -424,7 +437,8 @@ namespace BMSL {
         Sensors::avionics_current = LinearSensor<double>(AVIONICSCURRENTSENSORFW, 2.7, -0.14, &Measurements::avionics_current);
         Sensors::input_charging_current = LinearSensor<double>(INPUTCURRENTFW, 2.7, -0.14, &Measurements::input_charging_current);
         Sensors::output_charging_current = LinearSensor<double>(OUTPUTCURRENTFW, 2.7, -0.14, &Measurements::output_charging_current);
-
+        Sensors::input_charging_voltage = LinearSensor<double>(INPUTVOLTAGEFW, 91.74, -4.05, &Measurements::input_charging_voltage);
+        Sensors::output_charging_voltage = LinearSensor<double>(OUTPUTVOLTAGEFW, 8.86, -0.42, &Measurements::output_charging_voltage);
 
         StateMachines::general = StateMachine(States::General::CONNECTING);
         StateMachines::operational = StateMachine(States::Operational::IDLE);
