@@ -148,7 +148,7 @@ namespace BMSL {
     }
     namespace Orders {
         int selected_pwm = 0;
-        int selected_number = 0;
+        float selected_number = 0;
 
         void start_charging() {
             Conditions::want_to_charge = true;
@@ -185,6 +185,14 @@ namespace BMSL {
 
         void set_dclv_frequency() {
             ChargeControl::dclv.set_frequency(selected_number);
+        }
+
+        void set_dclv_duty_cycle() {
+            ChargeControl::dclv.set_duty_cycle(selected_number);
+        }
+
+        void set_dclv_phase() {
+            ChargeControl::dclv.set_phase(selected_number);
         }
 
         void set_pwm_duty_cycle(uint8_t duty_cycle) {

@@ -26,6 +26,18 @@ int main(void) {
 		&BMSL::Orders::selected_number
 	};
 
+	HeapOrder set_dclv_duty_cycle_order = {
+		803,
+		BMSL::Orders::set_dclv_duty_cycle,
+		&BMSL::Orders::selected_number
+	};
+
+	HeapOrder set_dclv_phase_order = {
+		804,
+		BMSL::Orders::set_dclv_phase,
+		&BMSL::Orders::selected_number
+	};
+
 	HeapOrder start_all_pwm_order = {
 		890,
 		BMSL::Orders::start_all_pwm,
@@ -64,10 +76,13 @@ int main(void) {
 	ServerSocket tcp_socket(IPV4("192.168.1.8"), 50500);
 	DatagramSocket test_socket(IPV4("192.168.1.8"), 50400, IPV4("192.168.0.9"), 50400);
 
-	BMSL::Orders::start_charging();
-	while(1) {
+	BMSL::StateMachines::general.add_low_precision_cyclic_action([&](){
 		test_socket.send(avionics_current_packet);
 		test_socket.send(battery_packet);
+	}, ms(1), BMSL::States::General::OPERATIONAL);
+	BMSL::Orders::start_charging();
+	while(1) {
+
 		BMSL::update();
 	}
 }
