@@ -58,14 +58,9 @@
 namespace BMSL {
 
     BMSA bms;
-
-    namespace ChargeControl {
-        double control_frequency = 5000;
-        double pwm_frequency = 100000;
-        PI<IntegratorType::Trapezoidal> charger_pi(-20, -1, 0.0002);
-        HalfBridge dclv;
-    }
-
+    DigitalOutput Reset_HW;
+    uint8_t sweep_action;
+    ChargingControl charging_control;
 
     namespace Measurements {
         double avionics_current;
@@ -77,6 +72,7 @@ namespace BMSL {
         double capacitor_temperature;
         double transformer_temperature;
         double rectifier_temperature;
+        double pwm_frequency = 37;
     }  
     namespace Sensors {
         LinearSensor<double> avionics_current;
@@ -96,12 +92,6 @@ namespace BMSL {
             CHARGING = 10,
             BALANCING = 11,
             IDLE = 12
-        };
-
-        enum Charging {
-            PRECHARGE = 100,
-            CONSTANT_CURRENT = 101,
-            CONSTANT_VOLTAGE = 102
         };
     }
     namespace Conditions {
@@ -158,24 +148,16 @@ namespace BMSL {
             Conditions::want_to_charge = false;
         };
 
-        void open_contactors() {
-
-        };
-
-        void close_contactors() {
-
-        };
-
         void start_all_pwm() {
-            ChargeControl::dclv.turn_on();
-            Leds::fault.turn_on();
+            charging_control.pwm_frequency = 100000;
+            charging_control.dclv.set_duty_cycle(50);
+            charging_control.charger_pi.reset();
+            charging_control.dclv.turn_on();
         }
 
         void stop_all_pwm() {
-            ChargeControl::dclv.turn_off();
-            Leds::fault.turn_off();
+            charging_control.dclv.turn_off();
         }
-
 
         void set_pwm_phase() {
         }
@@ -184,35 +166,56 @@ namespace BMSL {
         }
 
         void set_dclv_frequency() {
-            ChargeControl::dclv.set_frequency(selected_number);
+            charging_control.dclv.set_frequency(selected_number);
+            Measurements::pwm_frequency = selected_number;
         }
 
         void set_dclv_duty_cycle() {
-            ChargeControl::dclv.set_duty_cycle(selected_number);
+            charging_control.dclv.set_duty_cycle(selected_number);
         }
 
         void set_dclv_phase() {
-            ChargeControl::dclv.set_phase(selected_number);
+            charging_control.dclv.set_phase(selected_number);
         }
 
         void set_pwm_duty_cycle(uint8_t duty_cycle) {
             
         }
 
+        void reset_board() {
+            NVIC_SystemReset();
+        }
+
         void turn_on_pwm() {
             if (selected_pwm == 0) {
-                ChargeControl::dclv.positive_pwm.turn_on_positive();
-                ChargeControl::dclv.positive_pwm.set_duty_cycle(50);
+                charging_control.dclv.positive_pwm.turn_on_positive();
+                charging_control.dclv.positive_pwm.set_duty_cycle(50);
             } else if (selected_pwm == 1) {
-                ChargeControl::dclv.positive_pwm.turn_on_negated();
-                ChargeControl::dclv.positive_pwm.set_duty_cycle(50);
+                charging_control.dclv.positive_pwm.turn_on_negated();
+                charging_control.dclv.positive_pwm.set_duty_cycle(50);
             } else if (selected_pwm == 2) {
-                ChargeControl::dclv.negative_pwm.turn_on_positive();
-                ChargeControl::dclv.negative_pwm.set_duty_cycle(50);
+                charging_control.dclv.negative_pwm.turn_on_positive();
+                charging_control.dclv.negative_pwm.set_duty_cycle(50);
             } else if (selected_pwm == 3) {
-                ChargeControl::dclv.negative_pwm.turn_on_negated();
-                ChargeControl::dclv.negative_pwm.set_duty_cycle(50);
+                charging_control.dclv.negative_pwm.turn_on_negated();
+                charging_control.dclv.negative_pwm.set_duty_cycle(50);
             }
+        }
+
+        void frequency_sweep() {
+            charging_control.pwm_frequency = 200000;
+            sweep_action = Time::register_mid_precision_alarm(100,
+            [&](){
+                if (charging_control.pwm_frequency > 250000) {
+                    charging_control.pwm_frequency = 200000;
+                }
+                charging_control.pwm_frequency += 1;
+                charging_control.dclv.set_frequency(charging_control.pwm_frequency);
+            });
+        }
+
+        void stop_frequency_sweep() {
+            Time::unregister_mid_precision_alarm(sweep_action);
         }
     };
 
@@ -221,204 +224,166 @@ namespace BMSL {
         StateMachine operational;
         StateMachine charging;
 
-        void start() {
-        StateMachine& sm = StateMachines::general;
-        StateMachine& op_sm = StateMachines::operational;
-        StateMachine& ch_sm = StateMachines::charging;
+        void setup_states() {
+            using Gen = States::General;
+            using Op = States::Operational;
 
-        using Gen = States::General;
-        using Op = States::Operational;
-        using Ch = States::Charging;
+            general.add_state(Gen::OPERATIONAL);
+            general.add_state(Gen::FAULT);
+            general.add_state_machine(operational, Gen::OPERATIONAL);
+            
+            operational.add_state(Op::CHARGING);
+            operational.add_state(Op::BALANCING);
+            operational.add_state_machine(charging, Op::CHARGING);
+        }
 
-        sm.add_state(Gen::OPERATIONAL);
-        sm.add_state(Gen::FAULT);
+        void setup_transitions() {
+            using Gen = States::General;
+            using Op = States::Operational;
 
-        sm.add_transition(Gen::CONNECTING, Gen::OPERATIONAL, [&]() {
-            return Conditions::ready;
-        });
+            general.add_transition(Gen::CONNECTING, Gen::OPERATIONAL, [&]() {
+                return Conditions::ready;
+            });
 
-        sm.add_transition(Gen::OPERATIONAL, Gen::FAULT, [&]() {
-            return Conditions::fault;
-        });
+            general.add_transition(Gen::OPERATIONAL, Gen::FAULT, [&]() {
+                return Conditions::fault;
+            });
 
-        sm.add_transition(Gen::CONNECTING, Gen::FAULT, [&]() {
-            return Conditions::fault;
-        });
+            general.add_transition(Gen::CONNECTING, Gen::FAULT, [&]() {
+                return Conditions::fault;
+            });
+            
+            operational.add_transition(Op::IDLE, Op::CHARGING, [&]() {
+                return Conditions::want_to_charge;
+            });
 
-        sm.add_low_precision_cyclic_action([&]() {
-            Leds::operational.toggle();
-        }, ms(200), Gen::CONNECTING);
+            operational.add_transition(Op::CHARGING, Op::IDLE, [&]() {
+                return not Conditions::want_to_charge;
+            });
 
-        sm.add_mid_precision_cyclic_action([&]() {
-            Sensors::avionics_current.read();
-            Sensors::input_charging_current.read();
-            Sensors::output_charging_current.read();
-            Sensors::input_charging_voltage.read();
-            Sensors::output_charging_voltage.read();
-        }, ms(200), Gen::OPERATIONAL);
-
-        sm.add_enter_action([&]() {
-            Leds::operational.turn_on();
-        }, Gen::OPERATIONAL);
-
-        sm.add_enter_action([&]() {
-            Leds::fault.turn_on();
-        }, Gen::FAULT);
-
-        sm.add_exit_action([&]() {
-            Leds::operational.turn_off();
-        }, Gen::OPERATIONAL);
-
-        sm.add_exit_action([&]() {
-            Leds::fault.turn_off();
-        }, Gen::FAULT);
-
-        sm.add_state_machine(op_sm, Gen::OPERATIONAL);
-
-        op_sm.add_state(Op::CHARGING);
-        op_sm.add_state(Op::BALANCING);
-
-        op_sm.add_transition(Op::IDLE, Op::CHARGING, [&]() {
-            return Conditions::want_to_charge;
-        });
-
-        op_sm.add_transition(Op::CHARGING, Op::IDLE, [&]() {
-            return not Conditions::want_to_charge;
-        });
-
-        op_sm.add_transition(Op::CHARGING, Op::BALANCING, [&]() {
-            if (bms.external_adc.battery.needs_balance()) {
-                return true;
-            }
-            return false;
-        });
-
-        op_sm.add_transition(Op::BALANCING, Op::CHARGING, [&]() {
-            if (bms.external_adc.battery.needs_balance()) {
+            operational.add_transition(Op::CHARGING, Op::BALANCING, [&]() {
+                if (bms.external_adc.battery.needs_balance()) {
+                    return true;
+                }
                 return false;
-            }
-            return true;
-        });
+            });
 
-        op_sm.add_transition(Op::BALANCING, Op::IDLE, [&]() {
-            return not Conditions::want_to_charge;
-        });
-
-        op_sm.add_mid_precision_cyclic_action([&]() {
-            bms.wake_up();
-            bms.start_adc_conversion_all_cells();
-        }, us(3000), Op::IDLE);
-
-        HAL_Delay(2);
-
-        op_sm.add_mid_precision_cyclic_action([&]() {
-            bms.wake_up();
-            bms.read_cell_voltages();
-        }, us(3000), Op::IDLE);
-
-        op_sm.add_mid_precision_cyclic_action([&]() {
-            bms.wake_up();
-            bms.measure_internal_device_parameters();
-        }, ms(5), Op::IDLE);
-
-        HAL_Delay(3);
-
-        op_sm.add_mid_precision_cyclic_action([&]() {
-            bms.wake_up();
-            bms.read_internal_temperature();
-        }, ms(5), Op::IDLE);
-
-        HAL_Delay(3);
-        
-        op_sm.add_low_precision_cyclic_action([&]() {
-            bms.external_adc.battery.update_data();
-        }, ms(100), Op::IDLE);
-
-        HAL_Delay(3);
-
-        op_sm.add_low_precision_cyclic_action([&]() {
-            bms.wake_up();
-            bms.start_adc_conversion_gpio();
-        }, us(3000), Op::IDLE);
-
-        HAL_Delay(2);
-
-        op_sm.add_low_precision_cyclic_action([&]() {
-            bms.wake_up();
-            bms.read_temperatures();
-        }, us(3000), Op::IDLE);
-    
-        op_sm.add_mid_precision_cyclic_action([&]() {
-            Sensors::input_charging_current.read();
-            ChargeControl::charger_pi.input(CURRENT_SETPOINT - Measurements::input_charging_current);
-            ChargeControl::charger_pi.execute();
-            ChargeControl::pwm_frequency += ChargeControl::charger_pi.output_value;
-            //ChargeControl::dclv.set_frequency(ChargeControl::pwm_frequency);
-        }, us(200), Op::CHARGING);
-        op_sm.add_state_machine(ch_sm, Op::CHARGING);
-
-
-        ch_sm.add_state(Ch::CONSTANT_CURRENT);
-        ch_sm.add_state(Ch::CONSTANT_VOLTAGE);
-        
-        ch_sm.add_enter_action( [&]() {
-            ChargeControl::pwm_frequency = 100000;
-            ChargeControl::dclv.set_phase(100);
-            ChargeControl::dclv.set_duty_cycle(50);
-            ChargeControl::dclv.set_frequency(150000);
-            ChargeControl::charger_pi.reset();
-            ChargeControl::dclv.turn_on();
-
-
-        }, Ch::PRECHARGE);
-
-        op_sm.add_enter_action([&]() {
-            Leds::low_charge.turn_on();
-            BMSL::Conditions::charging = true;
-        }, Op::CHARGING);
-
-        op_sm.add_exit_action([&]() {
-            Leds::low_charge.turn_off();
-            BMSL::Conditions::charging = false;
-        }, Op::CHARGING);
-
-        ch_sm.add_low_precision_cyclic_action([&]() {
-            if (Measurements::input_charging_current < 1) {
-                Conditions::want_to_charge = false;
-            }
-        }, ms(100), Ch::CONSTANT_VOLTAGE);
-
-        ch_sm.add_low_precision_cyclic_action([&]() {
-            if (ChargeControl::dclv.get_phase() > 15) {
-                ChargeControl::dclv.set_phase(ChargeControl::dclv.get_phase() - 1);
-            }
-        }, ms(100), Ch::PRECHARGE);
-
-        ch_sm.add_exit_action( [&]() {
-            ChargeControl::dclv.set_phase(15);
-        }, Ch::PRECHARGE);
-
-        ch_sm.add_transition(Ch::PRECHARGE, Ch::CONSTANT_CURRENT, [&]() {
-            return ChargeControl::dclv.get_phase() <= 16;
-        });
-
-        ch_sm.add_transition(Ch::CONSTANT_CURRENT, Ch::CONSTANT_VOLTAGE, [&]() {
-            if (bms.external_adc.battery.SOC >= 80) {
+            operational.add_transition(Op::BALANCING, Op::CHARGING, [&]() {
+                if (bms.external_adc.battery.needs_balance()) {
+                    return false;
+                }
                 return true;
-            }
+            });
 
-            return false;
-        });
+            operational.add_transition(Op::BALANCING, Op::IDLE, [&]() {
+                return not Conditions::want_to_charge;
+            });
 
-        ch_sm.add_transition(Ch::CONSTANT_VOLTAGE, Ch::CONSTANT_CURRENT, [&]() {
-            if (bms.external_adc.battery.SOC <= 60) {
-                return true;
-            }
+        }
 
-            return false;
-        });
+        void setup_actions() {
+            using Gen = States::General;
+            using Op = States::Operational;
+                        
+            general.add_enter_action([&]() {
+                Leds::operational.turn_on();
+            }, Gen::OPERATIONAL);
 
-        sm.check_transitions();
+            general.add_enter_action([&]() {
+                Leds::fault.turn_on();
+            }, Gen::FAULT);
+
+            general.add_low_precision_cyclic_action([&]() {
+                Leds::operational.toggle();
+            }, ms(200), Gen::CONNECTING);
+
+            general.add_mid_precision_cyclic_action([&]() {
+                Sensors::avionics_current.read();
+                Sensors::input_charging_current.read();
+                Sensors::output_charging_current.read();
+                Sensors::input_charging_voltage.read();
+                Sensors::output_charging_voltage.read();
+            }, ms(200), Gen::OPERATIONAL);
+
+            general.add_mid_precision_cyclic_action([&]() {
+                ProtectionManager::check_protections();
+            }, us(100), Gen::OPERATIONAL);
+
+            general.add_exit_action([&]() {
+                Leds::operational.turn_off();
+            }, Gen::OPERATIONAL);
+
+            general.add_exit_action([&]() {
+                Leds::fault.turn_off();
+            }, Gen::FAULT);
+
+
+            operational.add_enter_action([&]() {
+                Leds::low_charge.turn_on();
+                BMSL::Conditions::charging = true;
+            }, Op::CHARGING);
+
+            operational.add_mid_precision_cyclic_action([&]() {
+                bms.wake_up();
+                bms.start_adc_conversion_all_cells();
+
+                Time::set_timeout(3, [&]() {
+                    bms.wake_up();
+                    bms.read_cell_voltages();
+                });
+            }, ms(10), Op::IDLE);
+
+            HAL_Delay(3);
+
+            operational.add_mid_precision_cyclic_action([&]() {
+                bms.wake_up();
+                bms.measure_internal_device_parameters();
+
+                Time::set_timeout(5, [&]() {
+                    bms.wake_up();
+                    bms.read_internal_temperature();
+                });
+            }, ms(5), Op::IDLE);
+
+            HAL_Delay(3);
+
+            operational.add_low_precision_cyclic_action([&]() {
+                bms.wake_up();
+                bms.start_adc_conversion_gpio();
+
+                Time::set_timeout(2, [&]() {
+                    bms.wake_up();
+                    bms.read_temperatures();
+                });
+            }, ms(10), Op::IDLE);
+
+            operational.add_low_precision_cyclic_action([&]() {
+                bms.external_adc.battery.update_data();
+            }, ms(100), Op::IDLE);
+        
+            operational.add_mid_precision_cyclic_action([&]() {
+                Sensors::input_charging_current.read();
+                charging_control.charger_pi.input(CURRENT_SETPOINT - Measurements::input_charging_current);
+                charging_control.charger_pi.execute();
+                // charging_control.pwm_frequency += charging_control.charger_pi.output_value;
+                //charging_control.dclv.set_frequency(charging_control.pwm_frequency);
+            }, us(200), Op::CHARGING);
+            
+            operational.add_exit_action([&]() {
+                Leds::low_charge.turn_off();
+                charging_control.dclv.turn_off();
+                BMSL::Conditions::charging = false;
+            }, Op::CHARGING);
+
+
+        }
+
+        void start() {
+            setup_states();
+            setup_transitions();
+            setup_actions();
+            
+            general.check_transitions();
         }
     }
 
@@ -432,7 +397,6 @@ namespace BMSL {
 
     void inscribe() {
         bms = BMSA(SPI::spi3);
-        ChargeControl::dclv = HalfBridge(DO_INV_PWM_H1, DO_INV_PWM_L1, DO_INV_PWM_H2, DO_INV_PWM_L2, BUFFER_EN);
 
         Leds::can = DigitalOutput(LED_CAN);
         Leds::fault = DigitalOutput(LED_FAULT);
@@ -443,24 +407,31 @@ namespace BMSL {
         Leds::sleep = DigitalOutput(LED_SLEEP);
 
         Sensors::avionics_current = LinearSensor<double>(AVIONICSCURRENTSENSORFW, 2.7, -0.14, &Measurements::avionics_current);
-        Sensors::input_charging_current = LinearSensor<double>(INPUTCURRENTFW, 2.7, -0.14, &Measurements::input_charging_current);
-        Sensors::output_charging_current = LinearSensor<double>(OUTPUTCURRENTFW, 2.7, -0.14, &Measurements::output_charging_current);
+        Sensors::input_charging_current = LinearSensor<double>(INPUTCURRENTFW, 3.78, -0.14, &Measurements::input_charging_current);
+        Sensors::output_charging_current = LinearSensor<double>(OUTPUTCURRENTFW, 10.4, -0.14, &Measurements::output_charging_current);
         Sensors::input_charging_voltage = LinearSensor<double>(INPUTVOLTAGEFW, 91.74, -4.05, &Measurements::input_charging_voltage);
         Sensors::output_charging_voltage = LinearSensor<double>(OUTPUTVOLTAGEFW, 8.86, -0.42, &Measurements::output_charging_voltage);
 
         StateMachines::general = StateMachine(States::General::CONNECTING);
         StateMachines::operational = StateMachine(States::Operational::IDLE);
-        StateMachines::charging = StateMachine(States::Charging::PRECHARGE);
+        charging_control = ChargingControl(&Measurements::input_charging_current, &Conditions::want_to_charge, &bms.external_adc.battery.SOC, DO_INV_PWM_H1, DO_INV_PWM_L1, DO_INV_PWM_H2, DO_INV_PWM_L2, BUFFER_EN);
+
+        Reset_HW = DigitalOutput(HW_FAULT);
     }
 
     void start() {
         STLIB::start("192.168.1.8");
         bms.initialize();
-        StateMachines::start();  
+        StateMachines::start(); 
 
         Packets::battery_info = Packets::serialize_battery(bms.external_adc.battery);
+        BMSL::Reset_HW.turn_on();
 
-        Conditions::ready = true;
+
+        Time::set_timeout(5000, [&](){
+            BMSL::Conditions::ready = true;
+        });
+
         StateMachines::general.check_transitions();    
     }
 

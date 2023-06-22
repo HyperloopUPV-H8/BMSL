@@ -124,7 +124,7 @@ map<pair<Pin, Pin>, TimerPeripheral*> Encoder::pin_timer_map = {
 #define BASE TimerPeripheral::TIM_TYPE::BASE
 #define ADVANCED TimerPeripheral::TIM_TYPE::ADVANCED
 
-TimerPeripheral timer1(&htim1, {ADVANCED, 5, 55000, 75, TIM_OCPOLARITY_LOW, TIM_OCPOLARITY_LOW}, "TIM 1");
+TimerPeripheral timer1(&htim1, {ADVANCED, 5, 55000, 600, TIM_OCPOLARITY_LOW, TIM_OCPOLARITY_LOW}, "TIM 1");
 TimerPeripheral timer2(&htim2, {BASE}, "TIM 2");
 TimerPeripheral timer3(&htim3, {ADVANCED}, "TIM 3");
 TimerPeripheral timer4(&htim4, {ADVANCED}, "TIM 4");
