@@ -120,10 +120,12 @@ int main(void) {
 	ServerSocket tcp_socket(IPV4("192.168.1.8"), 50500);
 	DatagramSocket test_socket(IPV4("192.168.1.8"), 50400, IPV4("192.168.0.9"), 50400);
 
-	while(1) {
-		BMSL::update();
+	Time::register_low_precision_alarm(15, [&](){
 		test_socket.send(avionics_current_packet);
 		test_socket.send(battery_packet);
+	});
+
+	while(1) {
 	}
 }
 
