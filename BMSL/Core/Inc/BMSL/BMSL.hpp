@@ -7,7 +7,6 @@
 #include "BMSL/Pins.hpp"
 
 namespace BMSL {
-    IncomingOrders orders;
     TCP tcp;
     UDP udp;
     Packets packets;
@@ -37,6 +36,7 @@ namespace BMSL {
         charging_control = ChargingControl(&Measurements::input_charging_current, &Conditions::want_to_charge, &bms.external_adc.battery.SOC, DO_INV_PWM_H1, DO_INV_PWM_L1, DO_INV_PWM_H2, DO_INV_PWM_L2, BUFFER_EN);
 
         Reset_HW = DigitalOutput(HW_FAULT);
+
     }
 
     void start() {
@@ -51,6 +51,9 @@ namespace BMSL {
         battery_info = serialize_battery(bms.external_adc.battery);
         BMSL::Reset_HW.turn_on();
 
+        Protections::inscribe();
+        ProtectionManager::set_id(Boards::ID::BMSA);
+        ProtectionManager::link_state_machine(StateMachines::general, States::General::FAULT);
 
         Time::set_timeout(5000, [&](){
             BMSL::Conditions::ready = true;

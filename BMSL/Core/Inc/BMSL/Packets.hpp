@@ -37,7 +37,7 @@ namespace BMSL {
         HeapPacket avionics_current_packet;
 
         Packets() :
-        battery_info_packet(810, battery_info.data),
+        battery_info_packet(810, &battery_info.data),
         conditions_packet(811, &Conditions::ready, &Conditions::want_to_charge, &Conditions::charging, &Conditions::fault),
         avionics_current_packet(812, &Measurements::avionics_current, &Measurements::input_charging_current, &Measurements::output_charging_current, &Measurements::input_charging_voltage, &Measurements::output_charging_voltage, &Measurements::pwm_frequency) {}
     };

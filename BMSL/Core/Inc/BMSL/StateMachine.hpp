@@ -71,19 +71,19 @@ namespace BMSL {
                 return not Conditions::want_to_charge;
             });
 
-            operational.add_transition(Op::CHARGING, Op::BALANCING, [&]() {
-                if (bms.external_adc.battery.needs_balance()) {
-                    return true;
-                }
-                return false;
-            });
+            // operational.add_transition(Op::CHARGING, Op::BALANCING, [&]() {
+            //     if (bms.external_adc.battery.needs_balance()) {
+            //         return true;
+            //     }
+            //     return false;
+            // });
 
-            operational.add_transition(Op::BALANCING, Op::CHARGING, [&]() {
-                if (bms.external_adc.battery.needs_balance()) {
-                    return false;
-                }
-                return true;
-            });
+            // operational.add_transition(Op::BALANCING, Op::CHARGING, [&]() {
+            //     if (bms.external_adc.battery.needs_balance()) {
+            //         return false;
+            //     }
+            //     return true;
+            // });
 
             operational.add_transition(Op::BALANCING, Op::IDLE, [&]() {
                 return not Conditions::want_to_charge;
@@ -101,6 +101,7 @@ namespace BMSL {
 
             general.add_enter_action([&]() {
                 Leds::fault.turn_on();
+                Conditions::fault = true;
             }, Gen::FAULT);
 
             general.add_low_precision_cyclic_action([&]() {
@@ -116,7 +117,17 @@ namespace BMSL {
             }, ms(200), Gen::OPERATIONAL);
 
             general.add_mid_precision_cyclic_action([&]() {
-                ProtectionManager::check_protections();
+                Sensors::avionics_current.read();
+                Sensors::input_charging_current.read();
+                Sensors::output_charging_current.read();
+                Sensors::input_charging_voltage.read();
+                Sensors::output_charging_voltage.read();
+            }, ms(200), Gen::FAULT);
+
+            general.add_mid_precision_cyclic_action([&]() {
+                if (Conditions::ready) {
+                    ProtectionManager::check_protections();
+                }
             }, us(100), Gen::OPERATIONAL);
 
             general.add_exit_action([&]() {
@@ -127,49 +138,78 @@ namespace BMSL {
                 Leds::fault.turn_off();
             }, Gen::FAULT);
 
-
             operational.add_enter_action([&]() {
                 Leds::low_charge.turn_on();
                 BMSL::Conditions::charging = true;
             }, Op::CHARGING);
 
-            operational.add_mid_precision_cyclic_action([&]() {
+            general.add_mid_precision_cyclic_action([&]() {
                 bms.wake_up();
                 bms.start_adc_conversion_all_cells();
 
-                Time::set_timeout(3, [&]() {
+                Time::set_timeout(10, [&]() {
                     bms.wake_up();
                     bms.read_cell_voltages();
                 });
-            }, ms(10), Op::IDLE);
+            }, ms(100), Gen::OPERATIONAL);
 
-            HAL_Delay(3);
-
-            operational.add_mid_precision_cyclic_action([&]() {
+            general.add_mid_precision_cyclic_action([&]() {
                 bms.wake_up();
                 bms.measure_internal_device_parameters();
 
-                Time::set_timeout(5, [&]() {
+                Time::set_timeout(10, [&]() {
                     bms.wake_up();
                     bms.read_internal_temperature();
                 });
-            }, ms(5), Op::IDLE);
+            }, ms(100), Gen::OPERATIONAL);
 
-            HAL_Delay(3);
-
-            operational.add_low_precision_cyclic_action([&]() {
+            general.add_low_precision_cyclic_action([&]() {
                 bms.wake_up();
-                bms.start_adc_conversion_gpio();
+                bms.start_adc_conversion_temperatures();
 
-                Time::set_timeout(2, [&]() {
+                Time::set_timeout(10, [&]() {
                     bms.wake_up();
                     bms.read_temperatures();
                 });
-            }, ms(10), Op::IDLE);
+            }, ms(100), Gen::OPERATIONAL);
 
-            operational.add_low_precision_cyclic_action([&]() {
+            general.add_low_precision_cyclic_action([&]() {
                 bms.external_adc.battery.update_data();
-            }, ms(100), Op::IDLE);
+            }, ms(100), Gen::OPERATIONAL);
+
+            general.add_mid_precision_cyclic_action([&]() {
+                bms.wake_up();
+                bms.start_adc_conversion_all_cells();
+
+                Time::set_timeout(10, [&]() {
+                    bms.wake_up();
+                    bms.read_cell_voltages();
+                });
+            }, ms(100), Gen::FAULT);
+
+            general.add_mid_precision_cyclic_action([&]() {
+                bms.wake_up();
+                bms.measure_internal_device_parameters();
+
+                Time::set_timeout(10, [&]() {
+                    bms.wake_up();
+                    bms.read_internal_temperature();
+                });
+            }, ms(100), Gen::FAULT);
+
+            general.add_low_precision_cyclic_action([&]() {
+                bms.wake_up();
+                bms.start_adc_conversion_temperatures();
+
+                Time::set_timeout(10, [&]() {
+                    bms.wake_up();
+                    bms.read_temperatures();
+                });
+            }, ms(100), Gen::FAULT);
+
+            general.add_low_precision_cyclic_action([&]() {
+                bms.external_adc.battery.update_data();
+            }, ms(100), Gen::FAULT);
         
             operational.add_mid_precision_cyclic_action([&]() {
                 Sensors::input_charging_current.read();
