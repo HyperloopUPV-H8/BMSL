@@ -88,6 +88,10 @@ namespace BMSL {
         void stop_frequency_sweep() {
             Time::unregister_mid_precision_alarm(sweep_action);
         }
+
+        void toggle_HW_reset() {
+            Reset_HW.toggle();
+        }
     };
 
     class IncomingOrders {
@@ -99,6 +103,7 @@ namespace BMSL {
         HeapOrder reset_board;
         HeapOrder start_frequency_sweep_order;
         HeapOrder stop_frequency_sweep_order;
+        HeapOrder toggle_HW_reset_order;
 
         IncomingOrders() : start_charging_order(800, Orders::start_charging),
                            stop_charging_order(801, Orders::stop_charging),
@@ -106,7 +111,8 @@ namespace BMSL {
                            set_dclv_phase_order(803, Orders::set_dclv_phase),
                            reset_board(804, Orders::reset_board),
                            start_frequency_sweep_order(892, Orders::frequency_sweep),
-                           stop_frequency_sweep_order(893, Orders::stop_frequency_sweep) {}
+                           stop_frequency_sweep_order(893, Orders::stop_frequency_sweep),
+                           toggle_HW_reset_order(894, Orders::toggle_HW_reset) {}
     };
 
     class TCP {

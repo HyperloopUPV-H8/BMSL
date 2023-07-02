@@ -52,3 +52,4 @@
 #define SWO PB3
 #define HW_FAULT PE0
 #define RX_ER PE1
+#define HW_RESET PE3

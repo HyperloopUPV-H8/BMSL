@@ -31,11 +31,17 @@ namespace BMSL {
         Sensors::input_charging_voltage = LinearSensor<double>(INPUTVOLTAGEFW, 91.74, -4.05, &Measurements::input_charging_voltage);
         Sensors::output_charging_voltage = LinearSensor<double>(OUTPUTVOLTAGEFW, 8.86, -0.42, &Measurements::output_charging_voltage);
 
-        StateMachines::general = StateMachine(States::General::CONNECTING);
-        StateMachines::operational = StateMachine(States::Operational::IDLE);
-        charging_control = ChargingControl(&Measurements::input_charging_current, &Conditions::want_to_charge, &bms.external_adc.battery.SOC, DO_INV_PWM_H1, DO_INV_PWM_L1, DO_INV_PWM_H2, DO_INV_PWM_L2, BUFFER_EN);
+        using namespace States;
+        StateMachines::general = StateMachine(General::CONNECTING);
+        StateMachines::operational = StateMachine(Operational::IDLE);
+        charging_control = ChargingControl(
+            &Measurements::input_charging_current,
+            &Conditions::want_to_charge,
+            &bms.external_adc.battery.SOC,
+            DO_INV_PWM_H1, DO_INV_PWM_L1, DO_INV_PWM_H2, DO_INV_PWM_L2, BUFFER_EN
+        );
 
-        Reset_HW = DigitalOutput(HW_FAULT);
+        Reset_HW = DigitalOutput(HW_RESET);
 
     }
 

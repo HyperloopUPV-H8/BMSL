@@ -38,12 +38,13 @@ namespace BMSL {
             using Gen = States::General;
             using Op = States::Operational;
 
+
             general.add_state(Gen::OPERATIONAL);
             general.add_state(Gen::FAULT);
-            general.add_state_machine(operational, Gen::OPERATIONAL);
-            
+
             operational.add_state(Op::CHARGING);
-            operational.add_state(Op::BALANCING);
+            operational.add_state(Op::BALANCING); 
+            general.add_state_machine(operational, Gen::OPERATIONAL);
             operational.add_state_machine(charging, Op::CHARGING);
         }
 
@@ -114,15 +115,8 @@ namespace BMSL {
                 Sensors::output_charging_current.read();
                 Sensors::input_charging_voltage.read();
                 Sensors::output_charging_voltage.read();
-            }, ms(200), Gen::OPERATIONAL);
+            }, ms(200), {Gen::OPERATIONAL, Gen::FAULT});
 
-            general.add_mid_precision_cyclic_action([&]() {
-                Sensors::avionics_current.read();
-                Sensors::input_charging_current.read();
-                Sensors::output_charging_current.read();
-                Sensors::input_charging_voltage.read();
-                Sensors::output_charging_voltage.read();
-            }, ms(200), Gen::FAULT);
 
             general.add_mid_precision_cyclic_action([&]() {
                 if (Conditions::ready) {
@@ -151,7 +145,7 @@ namespace BMSL {
                     bms.wake_up();
                     bms.read_cell_voltages();
                 });
-            }, ms(100), Gen::OPERATIONAL);
+            }, ms(100), {Gen::OPERATIONAL, Gen::FAULT});
 
             general.add_mid_precision_cyclic_action([&]() {
                 bms.wake_up();
@@ -161,7 +155,7 @@ namespace BMSL {
                     bms.wake_up();
                     bms.read_internal_temperature();
                 });
-            }, ms(100), Gen::OPERATIONAL);
+            }, ms(100), {Gen::OPERATIONAL, Gen::FAULT});
 
             general.add_low_precision_cyclic_action([&]() {
                 bms.wake_up();
@@ -171,45 +165,11 @@ namespace BMSL {
                     bms.wake_up();
                     bms.read_temperatures();
                 });
-            }, ms(100), Gen::OPERATIONAL);
+            }, ms(100), {Gen::OPERATIONAL, Gen::FAULT});
 
             general.add_low_precision_cyclic_action([&]() {
                 bms.external_adc.battery.update_data();
-            }, ms(100), Gen::OPERATIONAL);
-
-            general.add_mid_precision_cyclic_action([&]() {
-                bms.wake_up();
-                bms.start_adc_conversion_all_cells();
-
-                Time::set_timeout(10, [&]() {
-                    bms.wake_up();
-                    bms.read_cell_voltages();
-                });
-            }, ms(100), Gen::FAULT);
-
-            general.add_mid_precision_cyclic_action([&]() {
-                bms.wake_up();
-                bms.measure_internal_device_parameters();
-
-                Time::set_timeout(10, [&]() {
-                    bms.wake_up();
-                    bms.read_internal_temperature();
-                });
-            }, ms(100), Gen::FAULT);
-
-            general.add_low_precision_cyclic_action([&]() {
-                bms.wake_up();
-                bms.start_adc_conversion_temperatures();
-
-                Time::set_timeout(10, [&]() {
-                    bms.wake_up();
-                    bms.read_temperatures();
-                });
-            }, ms(100), Gen::FAULT);
-
-            general.add_low_precision_cyclic_action([&]() {
-                bms.external_adc.battery.update_data();
-            }, ms(100), Gen::FAULT);
+            }, ms(100), {Gen::OPERATIONAL, Gen::FAULT});
         
             operational.add_mid_precision_cyclic_action([&]() {
                 Sensors::input_charging_current.read();

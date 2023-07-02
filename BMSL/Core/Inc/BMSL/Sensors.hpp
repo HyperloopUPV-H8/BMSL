@@ -11,6 +11,7 @@ namespace BMSL {
         LinearSensor<double> output_charging_current;
         LinearSensor<double> input_charging_voltage;
         LinearSensor<double> output_charging_voltage;
+        NTC temp_inverter_dclv;
         
         void inscribe() {
         Sensors::avionics_current = LinearSensor<double>(AVIONICSCURRENTSENSORFW, 2.7, -0.14, &Measurements::avionics_current);
