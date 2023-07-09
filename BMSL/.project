@@ -3,6 +3,7 @@
 	<name>BMSL</name>
 	<comment></comment>
 	<projects>
+		<project>BMS-LIB</project>
 		<project>ST-LIB</project>
 	</projects>
 	<buildSpec>

@@ -10,6 +10,14 @@ int main(void) {
 
 	static_assert(BMS::EXTERNAL_ADCS == 1, "EXTERNAL_ADCS must be 1");
 	
+	#ifndef BOARD
+		static_assert(false, "Board code can not be run in Nucleo mode");
+	#endif
+
+	#ifdef HSE_VALUE
+		static_assert(HSE_VALUE == 25000000, "HSE_VALUE must be 25000000");
+	#endif
+
 	IncomingOrders orders;
 
 	inscribe();

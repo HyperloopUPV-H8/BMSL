@@ -34,7 +34,13 @@
 static void ethernet_link_status_updated(struct netif *netif);
 static void Ethernet_Link_Periodic_Handle(struct netif *netif);
 /* ETH Variables initialization ----------------------------------------------*/
-void Error_Handler(void);
+struct netif gnetif;
+ip4_addr_t ipaddr;
+ip4_addr_t netmask;
+ip4_addr_t gw;
+uint8_t IP_ADDRESS[4];
+uint8_t NETMASK_ADDRESS[4];
+uint8_t GATEWAY_ADDRESS[4];
 
 /* USER CODE BEGIN 1 */
 
@@ -57,7 +63,7 @@ void MX_LWIP_Init(void)
   IP_ADDRESS[3] = 8;
   NETMASK_ADDRESS[0] = 255;
   NETMASK_ADDRESS[1] = 255;
-  NETMASK_ADDRESS[2] = 0;
+  NETMASK_ADDRESS[2] = 255;
   NETMASK_ADDRESS[3] = 0;
   GATEWAY_ADDRESS[0] = 192;
   GATEWAY_ADDRESS[1] = 168;

@@ -53,7 +53,7 @@ namespace BMSL {
             using Op = States::Operational;
 
             general.add_transition(Gen::CONNECTING, Gen::OPERATIONAL, [&]() {
-                return Conditions::ready;
+                return Conditions::ready && tcp.backend.is_connected();
             });
 
             general.add_transition(Gen::OPERATIONAL, Gen::FAULT, [&]() {
@@ -184,6 +184,10 @@ namespace BMSL {
                 charging_control.dclv.turn_off();
                 BMSL::Conditions::charging = false;
             }, Op::CHARGING);
+
+            operational.add_low_precision_cyclic_action([&]() {
+                bms.start_balancing();
+            }, ms(100), Op::BALANCING);
 
 
         }
