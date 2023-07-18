@@ -1817,8 +1817,7 @@ void HAL_LPTIM_IRQHandler(LPTIM_HandleTypeDef *hlptim)
 {
   /* Compare match interrupt */
   if (__HAL_LPTIM_GET_FLAG(hlptim, LPTIM_FLAG_CMPM) != RESET)
-  {
-    if (__HAL_LPTIM_GET_IT_SOURCE(hlptim, LPTIM_IT_CMPM) != RESET)
+  {    if (__HAL_LPTIM_GET_IT_SOURCE(hlptim, LPTIM_IT_CMPM) != RESET)
     {
       /* Clear Compare match flag */
       __HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CMPM);

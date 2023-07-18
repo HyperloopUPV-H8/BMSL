@@ -23,13 +23,19 @@ int main(void) {
 	inscribe();
 	start();
 
+	BMSL::charging_control.dclv.turn_on();
+	BMSL::charging_control.dclv.set_duty_cycle(50);
+	BMSL::charging_control.dclv.set_frequency(100000);
+	BMSL::charging_control.dclv.set_phase(10);
+
+
+
 	while (not BMSL::Conditions::ready) {
 		__NOP();
 	}
 
 	Time::register_low_precision_alarm(15, [&](){
 		udp.send_to_backend(packets.avionics_current_packet);
-		udp.send_to_backend(packets.conditions_packet);
 		udp.send_to_backend(packets.battery_info_packet);
 
 		update();

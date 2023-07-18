@@ -32,7 +32,6 @@ namespace BMSL {
 
         StateMachine general;
         StateMachine operational;
-        StateMachine charging;
 
         void setup_states() {
             using Gen = States::General;
@@ -45,7 +44,8 @@ namespace BMSL {
             operational.add_state(Op::CHARGING);
             operational.add_state(Op::BALANCING); 
             general.add_state_machine(operational, Gen::OPERATIONAL);
-            operational.add_state_machine(charging, Op::CHARGING);
+            operational.add_state_machine(charging_control.state_machine, Op::CHARGING);
+            charging_control.start();
         }
 
         void setup_transitions() {
@@ -53,7 +53,7 @@ namespace BMSL {
             using Op = States::Operational;
 
             general.add_transition(Gen::CONNECTING, Gen::OPERATIONAL, [&]() {
-                return Conditions::ready && tcp.backend.is_connected();
+                return Conditions::ready;
             });
 
             general.add_transition(Gen::OPERATIONAL, Gen::FAULT, [&]() {
@@ -175,8 +175,8 @@ namespace BMSL {
                 Sensors::input_charging_current.read();
                 charging_control.charger_pi.input(CURRENT_SETPOINT - Measurements::input_charging_current);
                 charging_control.charger_pi.execute();
-                // charging_control.pwm_frequency += charging_control.charger_pi.output_value;
-                //charging_control.dclv.set_frequency(charging_control.pwm_frequency);
+//                 charging_control.pwm_frequency += charging_control.charger_pi.output_value;
+//                charging_control.dclv.set_frequency(charging_control.pwm_frequency);
             }, us(200), Op::CHARGING);
             
             operational.add_exit_action([&]() {
